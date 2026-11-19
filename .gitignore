@@ -1,0 +1,32 @@
+# Python & virtual environments
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# C++ / CMake / Ninja / Conan build artifacts
+build/
+CMakeUserPresets.json
+compile_commands.json
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.out
+
+# Heavy graph instance files (exceed GitHub's 100 MB per-file limit).
+# Provenance, seeds, SHA-256 hashes (metadata.json) and feature tables
+# (selection.csv) remain versioned in Git for exact reproducibility.
+dataset/raw/
+dataset/processed/*/instances/*.col
+*.tar.zst
+*.tar.gz
+
+# Editor & OS files
+.DS_Store
+*.swp
+*~
+.vscode/
+.idea/

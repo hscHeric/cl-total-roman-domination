@@ -1,0 +1,3 @@
+[submodule "external/graph-instances"]
+	path = external/graph-instances
+	url = git@github.com:hscHeric/graph-instances.git
