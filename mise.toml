@@ -9,3 +9,20 @@ python = "3.15.2"
 _.python.venv = { path = ".venv", create = true }
 PROJECT_ROOT = "{{cwd}}"
 
+[tasks."dataset:reproduce"]
+description = "Reproduce all 8 benchmark datasets (download/generate, convert, filter, select, copy to dataset/processed, verify SHA-256) from metadata.json"
+run = "python scripts/instances/reproduce_dataset.py"
+
+[tasks."dataset:reproduce:synthetic"]
+description = "Reproduce only the 4 synthetic datasets from metadata.json and verify SHA-256"
+run = "python scripts/instances/reproduce_dataset.py --synthetic-only"
+
+[tasks."dataset:reproduce:real"]
+description = "Reproduce only the 4 real/benchmark datasets from metadata.json and verify SHA-256"
+run = "python scripts/instances/reproduce_dataset.py --real-only"
+
+[tasks."dataset:verify"]
+description = "Verify SHA-256 checksums of all selected .col instances in dataset/processed/ against metadata.json"
+run = "python scripts/instances/reproduce_dataset.py --verify-only"
+
+

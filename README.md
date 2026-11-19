@@ -88,12 +88,55 @@ Por isso, o `.gitignore` ignora apenas `dataset/processed/*/instances/*.col`, en
 
 ### Como reproduzir exatamente os 240 arquivos `.col`
 
-#### Opção A — Reconstruir do zero via `external/graph-instances` (com as seeds exatas)
+#### Opção A — Automática via `mise` (recomendada)
+
+O script [`scripts/instances/reproduce_dataset.py`](scripts/instances/reproduce_dataset.py) lê **automaticamente todos os parâmetros, seeds e configurações de seleção diretamente dos arquivos `dataset/processed/<base>/metadata.json`**, executa o pipeline no submódulo `external/graph-instances`, copia os 30 `.col` selecionados de cada base para `dataset/processed/<base>/instances/` e valida todos os hashes **SHA-256** ao final:
+
+```bash
+# Reproduzir todas as 8 bases (download/geração, conversão, filtro, seleção, cópia e verificação SHA-256)
+mise run dataset:reproduce
+
+# Reproduzir apenas as 4 bases sintéticas (rápido, sem downloads)
+mise run dataset:reproduce:synthetic
+
+# Reproduzir apenas as 4 bases reais (Harwell-Boeing, DIMACS, BHOSLIB, SNAP)
+mise run dataset:reproduce:real
+
+# Apenas verificar a integridade SHA-256 dos 240 .col já presentes em dataset/processed/
+mise run dataset:verify
+```
+
+Também é possível passar opções extras ao script via `--` (por exemplo, pré-visualizar os comandos ou reproduzir apenas bases específicas):
+
+```bash
+# Pré-visualizar todos os comandos sem executar nada
+mise run dataset:reproduce -- --dry-run
+
+# Reproduzir apenas bases específicas (ex.: cubic e erdos_renyi)
+mise run dataset:reproduce -- --datasets cubic erdos_renyi
+
+# Reaproveitar downloads já presentes em external/graph-instances/datasets/<base>/raw/
+mise run dataset:reproduce:real -- --skip-download
+```
+
+#### Opção B — Empacotar / restaurar via arquivo compactado (ex.: GitHub Releases ou Zenodo)
+
+Para distribuir os 240 grafos prontos (sem precisar rebaixar/reconverter o SNAP), basta compactar em um único arquivo (~350–400 MB, aceito gratuitamente em **GitHub Releases** até 2 GB ou no **Zenodo**):
+
+```bash
+# Empacotar
+tar -I 'zstd -19' -cf dataset-processed-v1.tar.zst dataset/processed/
+
+# Restaurar na raiz do projeto e validar hashes SHA-256
+tar -I zstd -xf dataset-processed-v1.tar.zst
+mise run dataset:verify
+```
+
+#### Opção C — Execução manual passo a passo (sem `mise`)
 
 ```bash
 # 1. Preparar o ambiente do submódulo
 cd external/graph-instances
-mise install   # ou crie uma .venv com Python 3.14
 source .venv/bin/activate
 pip install -r requirements.txt
 
@@ -116,54 +159,12 @@ for ds in harwell-boeing dimacs bhoslib snap cubic erdos-renyi barabasi-albert w
   python graph_instances.py select "$ds" --count 30 --seed 42
 done
 
-# 5. Copiar os .col selecionados para dataset/processed/
+# 5. Copiar os .col selecionados para dataset/processed/ e validar SHA-256
 for ds in harwell_boeing dimacs bhoslib snap cubic erdos_renyi barabasi_albert watts_strogatz; do
   mkdir -p "../../dataset/processed/$ds/instances"
   cp "datasets/$ds/selected/"*.col "../../dataset/processed/$ds/instances/"
 done
 
 cd ../..
-```
-
-#### Opção B — Empacotar / restaurar via arquivo compactado (ex.: GitHub Releases ou Zenodo)
-
-Para distribuir os 240 grafos prontos (sem precisar rebaixar/reconverter o SNAP), basta compactar em um único arquivo (~350–400 MB, aceito gratuitamente em **GitHub Releases** até 2 GB ou no **Zenodo**):
-
-```bash
-# Empacotar
-tar -I 'zstd -19' -cf dataset-processed-v1.tar.zst dataset/processed/
-
-# Restaurar na raiz do projeto
-tar -I zstd -xf dataset-processed-v1.tar.zst
-```
-
----
-
-### Verificação de integridade (SHA-256)
-
-Depois de reconstruir ou extrair `dataset/processed/`, você pode validar os 240 arquivos `.col` contra os hashes SHA-256 registrados em `metadata.json`:
-
-```bash
-python3 - <<'EOF'
-import hashlib, json, glob, pathlib, sys
-
-checked, errors = 0, 0
-for meta_path in sorted(glob.glob("dataset/processed/*/metadata.json")):
-    meta = json.load(open(meta_path))
-    inst_dir = pathlib.Path(meta_path).parent / "instances"
-    for item in meta["selection"]["selected_graphs"]:
-        fpath = inst_dir / item["file"]
-        if not fpath.is_file():
-            print(f"MISSING: {fpath}")
-            errors += 1
-            continue
-        digest = hashlib.sha256(fpath.read_bytes()).hexdigest()
-        if digest != item["sha256"]:
-            print(f"MISMATCH: {fpath}")
-            errors += 1
-        checked += 1
-
-print(f"Verified {checked} files with {errors} error(s).")
-sys.exit(1 if errors else 0)
-EOF
+python3 scripts/instances/reproduce_dataset.py --verify-only
 ```
