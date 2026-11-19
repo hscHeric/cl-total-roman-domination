@@ -29,6 +29,61 @@ REAL_DATASETS = ("harwell_boeing", "dimacs", "bhoslib", "snap")
 SYNTHETIC_DATASETS = ("cubic", "erdos_renyi", "barabasi_albert", "watts_strogatz")
 ALL_DATASETS = (*REAL_DATASETS, *SYNTHETIC_DATASETS)
 
+DEFAULT_FRESH_GENERATION_ARGS: dict[str, list[str]] = {
+    "cubic": [
+        "generate",
+        "cubic",
+        "--doubling",
+        "100",
+        "1.045",
+        "106",
+        "--count",
+        "1",
+        "--remove-isolated",
+    ],
+    "erdos_renyi": [
+        "generate",
+        "erdos-renyi",
+        "--doubling",
+        "100",
+        "1.045",
+        "103",
+        "--avg-degree",
+        "12",
+        "--count",
+        "1",
+        "--remove-isolated",
+    ],
+    "barabasi_albert": [
+        "generate",
+        "barabasi-albert",
+        "--doubling",
+        "100",
+        "1.045",
+        "103",
+        "--m",
+        "4",
+        "--count",
+        "1",
+        "--remove-isolated",
+    ],
+    "watts_strogatz": [
+        "generate",
+        "watts-strogatz",
+        "--doubling",
+        "100",
+        "1.045",
+        "98",
+        "--k",
+        "6",
+        "--p-rewire",
+        "0.15",
+        "--count",
+        "1",
+        "--remove-isolated",
+    ],
+}
+
 
 def format_number(value: float | int) -> str:
     """Format numeric CLI arguments cleanly (integers without trailing .0)."""
@@ -51,19 +106,31 @@ def sha256_file(path: Path) -> str:
 
 def discover_datasets(args: argparse.Namespace) -> list[str]:
     """Resolve the ordered list of dataset folder names to process."""
-    available = {
+    if args.fresh and args.auto:
+        raise ValueError("--fresh and --auto are mutually exclusive")
+
+    existing_meta = {
         path.parent.name
         for path in PROCESSED_ROOT.glob("*/metadata.json")
     }
-    if not available:
-        raise FileNotFoundError(f"No metadata.json files found under {PROCESSED_ROOT}")
+    if args.fresh:
+        available = set(ALL_DATASETS)
+    elif args.auto:
+        available = set(ALL_DATASETS) | existing_meta
+    else:
+        available = existing_meta
+        if not available:
+            raise FileNotFoundError(
+                f"No metadata.json files found under {PROCESSED_ROOT}. "
+                "Use --fresh (or --auto) to generate a brand-new dataset from scratch."
+            )
 
     if args.datasets:
         requested = [name.replace("-", "_") for name in args.datasets]
         missing = [name for name in requested if name not in available]
         if missing:
             raise ValueError(
-                f"Unknown dataset(s) without metadata.json: {', '.join(missing)}. "
+                f"Unknown dataset(s): {', '.join(missing)}. "
                 f"Available: {', '.join(sorted(available))}"
             )
         return list(dict.fromkeys(requested))
@@ -298,6 +365,7 @@ def sync_selected_to_root(
         shutil.copy2(path, dst_instances / path.name)
 
     if update_metadata:
+        print(f"  Updating {dst_base}/metadata.json and selection.csv")
         for extra in ("metadata.json", "selection.csv"):
             src_extra = sub_base / extra
             if src_extra.is_file():
@@ -350,6 +418,52 @@ def verify_dataset(dataset: str) -> tuple[int, int, int]:
         f"verified (missing={missing}, mismatched={mismatched}, extra={len(extra)})"
     )
     return checked, missing, mismatched + len(extra)
+
+
+def generate_fresh_dataset(
+    dataset: str,
+    python_cmd: list[str],
+    args: argparse.Namespace,
+) -> None:
+    """Build a brand-new dataset from scratch (fresh random seeds) and update metadata."""
+    target = dataset.replace("_", "-")
+    sub_base = SUBMODULE_ROOT / "datasets" / dataset
+
+    print(f"\n=== [{dataset}] (fresh) ===")
+    if dataset in DEFAULT_FRESH_GENERATION_ARGS:
+        if not args.no_clean:
+            clean_col_files(sub_base / "processed", args.dry_run)
+            clean_col_files(sub_base / "selected", args.dry_run)
+            sub_meta = sub_base / "metadata.json"
+            if sub_meta.is_file():
+                print(f"  Removing previous {sub_meta}")
+                if not args.dry_run:
+                    sub_meta.unlink()
+        run_cli(python_cmd, DEFAULT_FRESH_GENERATION_ARGS[dataset], args.dry_run)
+    else:
+        if not args.skip_download:
+            run_cli(python_cmd, ["download", target], args.dry_run)
+        run_cli(python_cmd, ["convert", target, "--remove-isolated"], args.dry_run)
+
+    run_cli(python_cmd, ["filter", target, "--remove-isolated"], args.dry_run)
+    run_cli(
+        python_cmd,
+        [
+            "select",
+            target,
+            "--count",
+            str(args.count),
+            "--seed",
+            str(args.select_seed),
+        ],
+        args.dry_run,
+    )
+
+    sync_selected_to_root(
+        dataset,
+        update_metadata=True,
+        dry_run=args.dry_run,
+    )
 
 
 def reproduce_dataset(
@@ -412,6 +526,36 @@ def parse_args() -> argparse.Namespace:
             "Reproduce benchmark .col instances into dataset/processed/ "
             "using the exact parameters and seeds in metadata.json."
         )
+    )
+    parser.add_argument(
+        "--auto",
+        action="store_true",
+        help=(
+            "Automatically reproduce any dataset that already has "
+            "dataset/processed/<ds>/metadata.json, or generate it fresh from "
+            "scratch when metadata.json does not exist."
+        ),
+    )
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help=(
+            "Generate a brand-new dataset from scratch with fresh random seeds "
+            "for synthetic models (does not require existing metadata.json) and "
+            "updates dataset/processed/<ds>/{instances,metadata.json,selection.csv}."
+        ),
+    )
+    parser.add_argument(
+        "--count",
+        type=int,
+        default=30,
+        help="Representative instances to select per dataset in --fresh mode (default: 30).",
+    )
+    parser.add_argument(
+        "--select-seed",
+        type=int,
+        default=42,
+        help="K-Means selection seed used in --fresh mode (default: 42).",
     )
     parser.add_argument(
         "--datasets",
@@ -514,7 +658,15 @@ def main() -> None:
     )
 
     for dataset in datasets:
-        reproduce_dataset(dataset, python_cmd, args)
+        has_metadata = (PROCESSED_ROOT / dataset / "metadata.json").is_file()
+        if args.fresh or (args.auto and not has_metadata):
+            if args.auto:
+                print(f"[auto] {dataset}: metadata.json not found -> running fresh generation")
+            generate_fresh_dataset(dataset, python_cmd, args)
+        else:
+            if args.auto:
+                print(f"[auto] {dataset}: metadata.json found -> reproducing from metadata")
+            reproduce_dataset(dataset, python_cmd, args)
 
     if not args.dry_run and not args.skip_verify:
         print("\n=== SHA-256 Verification ===")

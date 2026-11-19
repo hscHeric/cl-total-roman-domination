@@ -10,12 +10,16 @@ _.python.venv = { path = ".venv", create = true }
 PROJECT_ROOT = "{{cwd}}"
 
 [tasks.dataset]
-description = "Run the full dataset pipeline from metadata.json (init submodule, install venv, download/generate all 8 datasets, convert, filter, select 240 graphs, copy to dataset/processed/, verify SHA-256)"
-run = "python scripts/instances/reproduce_dataset.py"
+description = "Auto dataset pipeline: reproduces from metadata.json if present, otherwise generates a brand-new dataset from scratch, copies to dataset/processed/, and verifies SHA-256"
+run = "python scripts/instances/reproduce_dataset.py --auto"
 
 [tasks."dataset:reproduce"]
-description = "Reproduce all 8 benchmark datasets (download/generate, convert, filter, select, copy to dataset/processed, verify SHA-256) from metadata.json"
+description = "Reproduce exact benchmark dataset from versioned metadata.json (download/generate with saved seeds, convert, filter, select, copy to dataset/processed/, verify SHA-256)"
 run = "python scripts/instances/reproduce_dataset.py"
+
+[tasks."dataset:generate"]
+description = "Generate a brand-new dataset from scratch (download/convert real datasets, generate synthetic datasets with fresh random seeds, filter, select 30 per family, copy instances + metadata.json + selection.csv to dataset/processed/, verify SHA-256)"
+run = "python scripts/instances/reproduce_dataset.py --fresh"
 
 [tasks."dataset:reproduce:synthetic"]
 description = "Reproduce only the 4 synthetic datasets from metadata.json and verify SHA-256"

@@ -93,24 +93,33 @@ Por isso, o `.gitignore` ignora apenas `dataset/processed/*/instances/*.col`, en
 O script [`scripts/instances/reproduce_dataset.py`](scripts/instances/reproduce_dataset.py) lê **automaticamente todos os parâmetros, seeds e configurações de seleção diretamente dos arquivos `dataset/processed/<base>/metadata.json`**, executa o pipeline no submódulo `external/graph-instances`, copia os 30 `.col` selecionados de cada base para `dataset/processed/<base>/instances/` e valida todos os hashes **SHA-256** ao final:
 
 ```bash
-# Task única: inicializa submódulo/venv, baixa/gera todas as 8 bases, converte,
-# filtra, seleciona os 240 grafos, copia para dataset/processed/ e valida SHA-256
+# Modo automático (task única): se dataset/processed/<base>/metadata.json já existir,
+# reproduz exatamente a partir dos metadados; se não existir, gera do zero
 mise run dataset
 
+# Forçar reprodução exata a partir dos metadata.json (mesmas seeds e hashes SHA-256)
+mise run dataset:reproduce
+
+# Forçar geração de um NOVO dataset do zero (novas seeds aleatórias nas sintéticas,
+# atualiza instances/*.col, metadata.json e selection.csv em dataset/processed/)
+mise run dataset:generate
+
 # (Opcional) Atalhos parciais:
-mise run dataset:reproduce:synthetic   # apenas as 4 bases sintéticas
-mise run dataset:reproduce:real        # apenas as 4 bases reais
+mise run dataset:reproduce:synthetic   # reproduzir apenas as 4 bases sintéticas
+mise run dataset:reproduce:real        # reproduzir apenas as 4 bases reais
 mise run dataset:verify                # apenas verificar os hashes SHA-256
 ```
 
-Também é possível passar opções extras ao script via `--` (por exemplo, pré-visualizar os comandos ou reproduzir apenas bases específicas):
+Também é possível passar opções extras ao script via `--` (por exemplo, pré-visualizar os comandos ou rodar apenas bases específicas):
 
 ```bash
 # Pré-visualizar todos os comandos sem executar nada
-mise run dataset -- --dry-run
+mise run dataset:reproduce -- --dry-run
+mise run dataset:generate -- --dry-run
 
-# Reproduzir apenas bases específicas (ex.: cubic e erdos_renyi)
-mise run dataset -- --datasets cubic erdos_renyi
+# Rodar apenas bases específicas (ex.: cubic e erdos_renyi)
+mise run dataset:reproduce -- --datasets cubic erdos_renyi
+mise run dataset:generate -- --synthetic-only
 
 # Reaproveitar downloads já presentes em external/graph-instances/datasets/<base>/raw/
 mise run dataset:reproduce:real -- --skip-download
