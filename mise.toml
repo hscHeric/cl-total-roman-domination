@@ -9,6 +9,10 @@ python = "3.15.2"
 _.python.venv = { path = ".venv", create = true }
 PROJECT_ROOT = "{{cwd}}"
 
+[tasks.dataset]
+description = "Run the full dataset pipeline from metadata.json (init submodule, install venv, download/generate all 8 datasets, convert, filter, select 240 graphs, copy to dataset/processed/, verify SHA-256)"
+run = "python scripts/instances/reproduce_dataset.py"
+
 [tasks."dataset:reproduce"]
 description = "Reproduce all 8 benchmark datasets (download/generate, convert, filter, select, copy to dataset/processed, verify SHA-256) from metadata.json"
 run = "python scripts/instances/reproduce_dataset.py"

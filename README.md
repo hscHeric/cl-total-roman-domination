@@ -93,27 +93,24 @@ Por isso, o `.gitignore` ignora apenas `dataset/processed/*/instances/*.col`, en
 O script [`scripts/instances/reproduce_dataset.py`](scripts/instances/reproduce_dataset.py) lê **automaticamente todos os parâmetros, seeds e configurações de seleção diretamente dos arquivos `dataset/processed/<base>/metadata.json`**, executa o pipeline no submódulo `external/graph-instances`, copia os 30 `.col` selecionados de cada base para `dataset/processed/<base>/instances/` e valida todos os hashes **SHA-256** ao final:
 
 ```bash
-# Reproduzir todas as 8 bases (download/geração, conversão, filtro, seleção, cópia e verificação SHA-256)
-mise run dataset:reproduce
+# Task única: inicializa submódulo/venv, baixa/gera todas as 8 bases, converte,
+# filtra, seleciona os 240 grafos, copia para dataset/processed/ e valida SHA-256
+mise run dataset
 
-# Reproduzir apenas as 4 bases sintéticas (rápido, sem downloads)
-mise run dataset:reproduce:synthetic
-
-# Reproduzir apenas as 4 bases reais (Harwell-Boeing, DIMACS, BHOSLIB, SNAP)
-mise run dataset:reproduce:real
-
-# Apenas verificar a integridade SHA-256 dos 240 .col já presentes em dataset/processed/
-mise run dataset:verify
+# (Opcional) Atalhos parciais:
+mise run dataset:reproduce:synthetic   # apenas as 4 bases sintéticas
+mise run dataset:reproduce:real        # apenas as 4 bases reais
+mise run dataset:verify                # apenas verificar os hashes SHA-256
 ```
 
 Também é possível passar opções extras ao script via `--` (por exemplo, pré-visualizar os comandos ou reproduzir apenas bases específicas):
 
 ```bash
 # Pré-visualizar todos os comandos sem executar nada
-mise run dataset:reproduce -- --dry-run
+mise run dataset -- --dry-run
 
 # Reproduzir apenas bases específicas (ex.: cubic e erdos_renyi)
-mise run dataset:reproduce -- --datasets cubic erdos_renyi
+mise run dataset -- --datasets cubic erdos_renyi
 
 # Reaproveitar downloads já presentes em external/graph-instances/datasets/<base>/raw/
 mise run dataset:reproduce:real -- --skip-download

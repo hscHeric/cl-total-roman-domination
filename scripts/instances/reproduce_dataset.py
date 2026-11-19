@@ -493,10 +493,20 @@ def main() -> None:
         return
 
     if not GRAPH_INSTANCES_CLI.is_file():
-        raise FileNotFoundError(
-            f"Submodule CLI not found at {GRAPH_INSTANCES_CLI}.\n"
-            "Run: git submodule update --init --recursive"
-        )
+        git_bin = shutil.which("git")
+        if git_bin and not args.no_bootstrap:
+            print("Submodule external/graph-instances not initialized; running git submodule update...")
+            if not args.dry_run:
+                subprocess.run(
+                    [git_bin, "submodule", "update", "--init", "--recursive"],
+                    cwd=PROJECT_ROOT,
+                    check=True,
+                )
+        if not args.dry_run and not GRAPH_INSTANCES_CLI.is_file():
+            raise FileNotFoundError(
+                f"Submodule CLI not found at {GRAPH_INSTANCES_CLI}.\n"
+                "Run: git submodule update --init --recursive"
+            )
 
     python_cmd = resolve_submodule_python(
         bootstrap=not args.no_bootstrap,
