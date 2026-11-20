@@ -199,6 +199,12 @@ def resolve_submodule_python(bootstrap: bool, dry_run: bool) -> list[str]:
         if mise_bin:
             print("Submodule .venv not found; bootstrapping via mise + pip...")
             subprocess.run(
+                [mise_bin, "trust", str(SUBMODULE_ROOT / "mise.toml")],
+                cwd=SUBMODULE_ROOT,
+                env=_submodule_env(),
+                check=True,
+            )
+            subprocess.run(
                 [mise_bin, "install"],
                 cwd=SUBMODULE_ROOT,
                 env=_submodule_env(),
