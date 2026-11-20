@@ -232,8 +232,12 @@ def resolve_submodule_python(bootstrap: bool, dry_run: bool) -> list[str]:
 
     raise RuntimeError(
         f"Submodule virtual environment not found or incomplete at {venv_python}.\n"
-        "Initialize it first:\n"
-        "  cd external/graph-instances && mise install && "
+        "Initialize it first (with mise or standard Python venv):\n"
+        "  # With mise:\n"
+        "  cd external/graph-instances && mise trust && mise install && "
+        "source .venv/bin/activate && pip install -r requirements.txt\n"
+        "  # Without mise:\n"
+        "  cd external/graph-instances && python3 -m venv .venv && "
         "source .venv/bin/activate && pip install -r requirements.txt"
     )
 

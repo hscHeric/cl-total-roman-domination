@@ -29,35 +29,71 @@ Se você já clonou sem `--recurse-submodules`, inicialize o submódulo com:
 git submodule update --init --recursive
 ```
 
-### 2. Instalar as ferramentas do ambiente (`mise`)
+---
 
-O projeto gerencia `cmake`, `conan`, `ninja` e `python` via [`mise`](https://mise.jdx.dev/) (veja [`mise.toml`](mise.toml)):
+### 2. Preparar o ambiente (com `mise` ou sem `mise`)
+
+Você pode gerenciar as ferramentas do projeto automaticamente com **`mise`** (recomendado) ou instalá-las manualmente no sistema.
+
+#### Opção A — Com `mise` (recomendado)
+
+O arquivo [`mise.toml`](mise.toml) instala e isola automaticamente `cmake`, `ninja`, `python`, `uv`, `pipx` e `conan` (note que `pipx` e `uv` existem na configuração **apenas para instalar o `conan`** de forma isolada e criar o ambiente virtual):
 
 ```bash
 mise trust
 mise install
 ```
 
-### 3. Gerar ou reproduzir o dataset
+#### Opção B — Sem `mise` (instalação manual)
 
-Na raiz do projeto, execute **apenas**:
+Se preferir não usar `mise`, garanta as seguintes ferramentas instaladas no seu sistema:
+
+- **Build C++**: `git`, compilador C++ (GCC ou Clang), `cmake` e `ninja`;
+- **Gerenciador de pacotes C++ (`conan`)**: o **`pipx` serve apenas para instalar o `conan`** de forma isolada sem poluir o Python do sistema:
+  ```bash
+  pipx install conan
+  ```
+  *(Se você já tiver o `conan` instalado por outro meio — ex.: `uv tool install conan` ou via gerenciador do sistema — não precisa do `pipx`.)*
+- **Python (3.12 a 3.14 recomendado)** para os scripts do projeto e para o submódulo `external/graph-instances` (que depende de `numpy`, `scipy`, `scikit-learn` e `networkx`).
+
+Em seguida, crie o ambiente virtual do submódulo `external/graph-instances` e instale as dependências dele:
 
 ```bash
-mise run dataset
+cd external/graph-instances
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+deactivate
+cd ../..
 ```
 
-Esse comando cuida de tudo automaticamente (inicializa o submódulo e o `.venv` se necessário, baixa/converte as 4 bases reais, gera as 4 bases sintéticas, filtra vértices isolados, seleciona 30 instâncias representativas por base, copia os 240 arquivos `.col` para `dataset/processed/<base>/instances/` e valida os hashes **SHA-256**):
+*(Opcional)* Crie também um ambiente virtual na raiz do projeto caso vá instalar dependências dos scripts em `scripts/` ou do solver exato:
 
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+---
+
+### 3. Gerar ou reproduzir o dataset
+
+O script [`scripts/instances/reproduce_dataset.py`](scripts/instances/reproduce_dataset.py) executa o pipeline completo (baixa/converte as 4 bases reais, gera as 4 bases sintéticas, filtra vértices isolados, seleciona 30 instâncias representativas por base, copia os 240 arquivos `.col` para `dataset/processed/<base>/instances/` e valida os hashes **SHA-256**).
+
+No modo automático:
 - Se `dataset/processed/<base>/metadata.json` **já existir** (padrão ao clonar o repositório) → **reproduz exatamente** os 240 grafos usando os parâmetros e seeds versionados.
 - Se `dataset/processed/<base>/metadata.json` **não existir** → **gera um novo dataset do zero** com novas seeds aleatórias e grava os novos `metadata.json` e `selection.csv`.
 
-Se quiser escolher explicitamente o modo:
+#### Com `mise`
 
 ```bash
-# Reproduzir exatamente o dataset atual a partir dos metadata.json (mesmas seeds e SHA-256)
+# Modo automático (task única: reproduz se houver metadata.json, ou gera do zero se não houver)
+mise run dataset
+
+# Forçar reprodução exata a partir dos metadata.json (mesmas seeds e SHA-256)
 mise run dataset:reproduce
 
-# Gerar um NOVO dataset do zero (novas seeds aleatórias nas sintéticas;
+# Forçar geração de um NOVO dataset do zero (novas seeds aleatórias nas sintéticas;
 # atualiza instances/*.col, metadata.json e selection.csv em dataset/processed/)
 mise run dataset:generate
 
@@ -67,19 +103,43 @@ mise run dataset:reproduce:real        # reproduzir apenas as 4 bases reais
 mise run dataset:verify                # apenas verificar a integridade SHA-256 dos .col
 ```
 
-Opções extras podem ser passadas via `--` ao script [`scripts/instances/reproduce_dataset.py`](scripts/instances/reproduce_dataset.py):
+#### Sem `mise` (chamando o Python diretamente)
+
+Os mesmos comandos funcionam diretamente com `python3`, sem precisar do `mise` (basta ter criado o `.venv` de `external/graph-instances` no passo 2):
+
+```bash
+# Modo automático (reproduz se houver metadata.json, ou gera do zero se não houver)
+python3 scripts/instances/reproduce_dataset.py --auto
+
+# Forçar reprodução exata a partir dos metadata.json (mesmas seeds e SHA-256)
+python3 scripts/instances/reproduce_dataset.py
+
+# Forçar geração de um NOVO dataset do zero (novas seeds aleatórias nas sintéticas;
+# atualiza instances/*.col, metadata.json e selection.csv em dataset/processed/)
+python3 scripts/instances/reproduce_dataset.py --fresh
+
+# Atalhos parciais e verificação
+python3 scripts/instances/reproduce_dataset.py --synthetic-only   # apenas as 4 bases sintéticas
+python3 scripts/instances/reproduce_dataset.py --real-only        # apenas as 4 bases reais
+python3 scripts/instances/reproduce_dataset.py --verify-only      # apenas verificar SHA-256
+```
+
+#### Opções úteis (com ou sem `mise`)
+
+Com `mise`, passe as flags após `--`; sem `mise`, passe diretamente ao `reproduce_dataset.py`:
 
 ```bash
 # Pré-visualizar todos os comandos sem executar nada
 mise run dataset -- --dry-run
-mise run dataset:generate -- --dry-run
+python3 scripts/instances/reproduce_dataset.py --auto --dry-run
 
 # Processar apenas bases específicas (ex.: cubic e erdos_renyi)
 mise run dataset -- --datasets cubic erdos_renyi
-mise run dataset:generate -- --synthetic-only
+python3 scripts/instances/reproduce_dataset.py --auto --datasets cubic erdos_renyi
 
 # Reaproveitar downloads já presentes em external/graph-instances/datasets/<base>/raw/
 mise run dataset:reproduce:real -- --skip-download
+python3 scripts/instances/reproduce_dataset.py --real-only --skip-download
 ```
 
 ---
@@ -91,7 +151,7 @@ mise run dataset:reproduce:real -- --skip-download
 ├── dataset/
 │   └── processed/
 │       └── <base>/
-│           ├── instances/     # Arquivos .col (ignorados pelo Git; gerados via `mise run dataset`)
+│           ├── instances/     # Arquivos .col (ignorados pelo Git; gerados via script/task)
 │           ├── metadata.json  # Proveniência, seeds, parâmetros e hashes SHA-256
 │           └── selection.csv  # 16 features estruturais, clusters K-Means e PCA 2D
 ├── docs/                      # Notas técnicas e documentação do projeto
@@ -114,7 +174,7 @@ mise run dataset:reproduce:real -- --skip-download
 │       ├── brkga/             # Método principal (BRKGA)
 │       └── secondary/         # Método secundário de comparação
 ├── tests/                     # Testes unitários e de pipeline
-└── mise.toml                  # Versões fixadas de CMake, Conan, Ninja, Python e tasks
+└── mise.toml                  # Versões fixadas de CMake, Conan, Ninja, Python, uv/pipx e tasks
 ```
 
 ---
@@ -159,17 +219,15 @@ tar -I 'zstd -19' -cf dataset-processed-v1.tar.zst dataset/processed/
 
 # Restaurar na raiz do projeto e validar hashes SHA-256
 tar -I zstd -xf dataset-processed-v1.tar.zst
-mise run dataset:verify
+python3 scripts/instances/reproduce_dataset.py --verify-only   # ou: mise run dataset:verify
 ```
 
-#### Execução manual passo a passo (sem `mise`)
+#### Execução manual passo a passo diretamente no submódulo
 
 ```bash
-# 1. Preparar o ambiente do submódulo (Python 3.14 recomendado)
+# 1. Ativar o ambiente virtual do submódulo (criado no passo 2)
 cd external/graph-instances
-python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
 
 # 2. Baixar e converter as 4 bases reais (removendo vértices isolados)
 python graph_instances.py download harwell-boeing
@@ -197,6 +255,7 @@ for ds in harwell_boeing dimacs bhoslib snap cubic erdos_renyi barabasi_albert w
   cp "datasets/$ds/selected/"*.col "../../dataset/processed/$ds/instances/"
 done
 
+deactivate
 cd ../..
 python3 scripts/instances/reproduce_dataset.py --verify-only
 ```
