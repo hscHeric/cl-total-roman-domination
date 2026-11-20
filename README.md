@@ -4,6 +4,86 @@ Estudo experimental e implementações de métodos exatos e metaheurísticos (in
 
 ---
 
+## Início rápido: como baixar o repositório e gerar o dataset
+
+### 1. Baixar o repositório
+
+Clone o repositório já trazendo o submódulo [`external/graph-instances`](external/graph-instances):
+
+```bash
+# Via SSH (recomendado)
+git clone --recurse-submodules git@github.com:hscHeric/cl-total-roman-domination.git
+cd cl-total-roman-domination
+```
+
+Ou via HTTPS:
+
+```bash
+git clone --recurse-submodules https://github.com/hscHeric/cl-total-roman-domination.git
+cd cl-total-roman-domination
+```
+
+Se você já clonou sem `--recurse-submodules`, inicialize o submódulo com:
+
+```bash
+git submodule update --init --recursive
+```
+
+### 2. Instalar as ferramentas do ambiente (`mise`)
+
+O projeto gerencia `cmake`, `conan`, `ninja` e `python` via [`mise`](https://mise.jdx.dev/) (veja [`mise.toml`](mise.toml)):
+
+```bash
+mise trust
+mise install
+```
+
+### 3. Gerar ou reproduzir o dataset
+
+Na raiz do projeto, execute **apenas**:
+
+```bash
+mise run dataset
+```
+
+Esse comando cuida de tudo automaticamente (inicializa o submódulo e o `.venv` se necessário, baixa/converte as 4 bases reais, gera as 4 bases sintéticas, filtra vértices isolados, seleciona 30 instâncias representativas por base, copia os 240 arquivos `.col` para `dataset/processed/<base>/instances/` e valida os hashes **SHA-256**):
+
+- Se `dataset/processed/<base>/metadata.json` **já existir** (padrão ao clonar o repositório) → **reproduz exatamente** os 240 grafos usando os parâmetros e seeds versionados.
+- Se `dataset/processed/<base>/metadata.json` **não existir** → **gera um novo dataset do zero** com novas seeds aleatórias e grava os novos `metadata.json` e `selection.csv`.
+
+Se quiser escolher explicitamente o modo:
+
+```bash
+# Reproduzir exatamente o dataset atual a partir dos metadata.json (mesmas seeds e SHA-256)
+mise run dataset:reproduce
+
+# Gerar um NOVO dataset do zero (novas seeds aleatórias nas sintéticas;
+# atualiza instances/*.col, metadata.json e selection.csv em dataset/processed/)
+mise run dataset:generate
+
+# Atalhos parciais e verificação
+mise run dataset:reproduce:synthetic   # reproduzir apenas as 4 bases sintéticas
+mise run dataset:reproduce:real        # reproduzir apenas as 4 bases reais
+mise run dataset:verify                # apenas verificar a integridade SHA-256 dos .col
+```
+
+Opções extras podem ser passadas via `--` ao script [`scripts/instances/reproduce_dataset.py`](scripts/instances/reproduce_dataset.py):
+
+```bash
+# Pré-visualizar todos os comandos sem executar nada
+mise run dataset -- --dry-run
+mise run dataset:generate -- --dry-run
+
+# Processar apenas bases específicas (ex.: cubic e erdos_renyi)
+mise run dataset -- --datasets cubic erdos_renyi
+mise run dataset:generate -- --synthetic-only
+
+# Reaproveitar downloads já presentes em external/graph-instances/datasets/<base>/raw/
+mise run dataset:reproduce:real -- --skip-download
+```
+
+---
+
 ## Estrutura do repositório
 
 ```text
@@ -11,7 +91,7 @@ Estudo experimental e implementações de métodos exatos e metaheurísticos (in
 ├── dataset/
 │   └── processed/
 │       └── <base>/
-│           ├── instances/     # Arquivos .col (ignorados pelo Git; veja seção Dataset)
+│           ├── instances/     # Arquivos .col (ignorados pelo Git; gerados via `mise run dataset`)
 │           ├── metadata.json  # Proveniência, seeds, parâmetros e hashes SHA-256
 │           └── selection.csv  # 16 features estruturais, clusters K-Means e PCA 2D
 ├── docs/                      # Notas técnicas e documentação do projeto
@@ -24,7 +104,7 @@ Estudo experimental e implementações de métodos exatos e metaheurísticos (in
 ├── results/                   # Resultados brutos e agregados dos experimentos
 ├── scripts/
 │   ├── analysis/              # Análise estatística, tabelas e gráficos
-│   ├── instances/             # Utilitários de organização/verificação de instâncias
+│   ├── instances/             # Reprodução, geração e verificação SHA-256 do dataset
 │   └── tuning/                # Scripts de calibração de hiperparâmetros
 ├── src/
 │   ├── common/                # Parser DIMACS .col, CLI, RNG e utilitários compartilhados
@@ -34,26 +114,7 @@ Estudo experimental e implementações de métodos exatos e metaheurísticos (in
 │       ├── brkga/             # Método principal (BRKGA)
 │       └── secondary/         # Método secundário de comparação
 ├── tests/                     # Testes unitários e de pipeline
-└── mise.toml                  # Versões fixadas de CMake, Conan, Ninja e Python
-```
-
----
-
-## Ambiente e pré-requisitos
-
-As ferramentas de build e Python são gerenciadas via [`mise`](https://mise.jdx.dev/) conforme [`mise.toml`](mise.toml) (`cmake`, `conan`, `ninja`, `python`).
-
-Ao clonar o repositório, inicialize também o submódulo `external/graph-instances`:
-
-```bash
-git clone --recurse-submodules git@github.com:hscHeric/cl-total-roman-domination.git
-cd cl-total-roman-domination
-```
-
-Se já clonou sem `--recurse-submodules`:
-
-```bash
-git submodule update --init --recursive
+└── mise.toml                  # Versões fixadas de CMake, Conan, Ninja, Python e tasks
 ```
 
 ---
@@ -86,46 +147,9 @@ Por isso, o `.gitignore` ignora apenas `dataset/processed/*/instances/*.col`, en
 
 ---
 
-### Como reproduzir exatamente os 240 arquivos `.col`
+### Alternativas para obter ou distribuir o dataset
 
-#### Opção A — Automática via `mise` (recomendada)
-
-O script [`scripts/instances/reproduce_dataset.py`](scripts/instances/reproduce_dataset.py) lê **automaticamente todos os parâmetros, seeds e configurações de seleção diretamente dos arquivos `dataset/processed/<base>/metadata.json`**, executa o pipeline no submódulo `external/graph-instances`, copia os 30 `.col` selecionados de cada base para `dataset/processed/<base>/instances/` e valida todos os hashes **SHA-256** ao final:
-
-```bash
-# Modo automático (task única): se dataset/processed/<base>/metadata.json já existir,
-# reproduz exatamente a partir dos metadados; se não existir, gera do zero
-mise run dataset
-
-# Forçar reprodução exata a partir dos metadata.json (mesmas seeds e hashes SHA-256)
-mise run dataset:reproduce
-
-# Forçar geração de um NOVO dataset do zero (novas seeds aleatórias nas sintéticas,
-# atualiza instances/*.col, metadata.json e selection.csv em dataset/processed/)
-mise run dataset:generate
-
-# (Opcional) Atalhos parciais:
-mise run dataset:reproduce:synthetic   # reproduzir apenas as 4 bases sintéticas
-mise run dataset:reproduce:real        # reproduzir apenas as 4 bases reais
-mise run dataset:verify                # apenas verificar os hashes SHA-256
-```
-
-Também é possível passar opções extras ao script via `--` (por exemplo, pré-visualizar os comandos ou rodar apenas bases específicas):
-
-```bash
-# Pré-visualizar todos os comandos sem executar nada
-mise run dataset:reproduce -- --dry-run
-mise run dataset:generate -- --dry-run
-
-# Rodar apenas bases específicas (ex.: cubic e erdos_renyi)
-mise run dataset:reproduce -- --datasets cubic erdos_renyi
-mise run dataset:generate -- --synthetic-only
-
-# Reaproveitar downloads já presentes em external/graph-instances/datasets/<base>/raw/
-mise run dataset:reproduce:real -- --skip-download
-```
-
-#### Opção B — Empacotar / restaurar via arquivo compactado (ex.: GitHub Releases ou Zenodo)
+#### Empacotar / restaurar via arquivo compactado (ex.: GitHub Releases ou Zenodo)
 
 Para distribuir os 240 grafos prontos (sem precisar rebaixar/reconverter o SNAP), basta compactar em um único arquivo (~350–400 MB, aceito gratuitamente em **GitHub Releases** até 2 GB ou no **Zenodo**):
 
@@ -138,11 +162,12 @@ tar -I zstd -xf dataset-processed-v1.tar.zst
 mise run dataset:verify
 ```
 
-#### Opção C — Execução manual passo a passo (sem `mise`)
+#### Execução manual passo a passo (sem `mise`)
 
 ```bash
-# 1. Preparar o ambiente do submódulo
+# 1. Preparar o ambiente do submódulo (Python 3.14 recomendado)
 cd external/graph-instances
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
@@ -154,6 +179,7 @@ python graph_instances.py download snap
 python graph_instances.py convert all --remove-isolated
 
 # 3. Gerar as 4 bases sintéticas com as seeds exatas registradas em metadata.json
+#    (remova --seed <...> caso queira gerar novas instâncias com seeds aleatórias)
 python graph_instances.py generate cubic           --doubling 100 1.045 106 --count 1 --seed 1589853731 --remove-isolated
 python graph_instances.py generate erdos-renyi     --doubling 100 1.045 103 --avg-degree 12 --count 1 --seed 232044735 --remove-isolated
 python graph_instances.py generate barabasi-albert --doubling 100 1.045 103 --m 4 --count 1 --seed 1715692963 --remove-isolated
