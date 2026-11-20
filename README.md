@@ -93,13 +93,15 @@ mise run dataset
 # Forçar reprodução exata a partir dos metadata.json (mesmas seeds e SHA-256)
 mise run dataset:reproduce
 
-# Forçar geração de um NOVO dataset do zero (novas seeds aleatórias nas sintéticas;
-# atualiza instances/*.col, metadata.json e selection.csv em dataset/processed/)
+# Forçar geração de um NOVO dataset do zero (seeds aleatórias de geração e seleção,
+# salvas nos metadata.json; atualiza instances/*.col, metadata.json e selection.csv)
 mise run dataset:generate
 
 # Atalhos parciais e verificação
-mise run dataset:reproduce:synthetic   # reproduzir apenas as 4 bases sintéticas
-mise run dataset:reproduce:real        # reproduzir apenas as 4 bases reais
+mise run dataset:generate:synthetic    # gerar apenas as 4 bases sintéticas (seeds aleatórias)
+mise run dataset:generate:real         # gerar/selecionar apenas as 4 bases reais (seeds aleatórias)
+mise run dataset:reproduce:synthetic   # reproduzir apenas as 4 bases sintéticas dos metadados
+mise run dataset:reproduce:real        # reproduzir apenas as 4 bases reais dos metadados
 mise run dataset:verify                # apenas verificar a integridade SHA-256 dos .col
 ```
 
@@ -114,14 +116,16 @@ python3 scripts/instances/reproduce_dataset.py --auto
 # Forçar reprodução exata a partir dos metadata.json (mesmas seeds e SHA-256)
 python3 scripts/instances/reproduce_dataset.py
 
-# Forçar geração de um NOVO dataset do zero (novas seeds aleatórias nas sintéticas;
-# atualiza instances/*.col, metadata.json e selection.csv em dataset/processed/)
+# Forçar geração de um NOVO dataset do zero (seeds aleatórias de geração e seleção,
+# salvas nos metadata.json; atualiza instances/*.col, metadata.json e selection.csv)
 python3 scripts/instances/reproduce_dataset.py --fresh
 
 # Atalhos parciais e verificação
-python3 scripts/instances/reproduce_dataset.py --synthetic-only   # apenas as 4 bases sintéticas
-python3 scripts/instances/reproduce_dataset.py --real-only        # apenas as 4 bases reais
-python3 scripts/instances/reproduce_dataset.py --verify-only      # apenas verificar SHA-256
+python3 scripts/instances/reproduce_dataset.py --fresh --synthetic-only  # gerar só sintéticas
+python3 scripts/instances/reproduce_dataset.py --fresh --real-only       # gerar/selecionar só reais
+python3 scripts/instances/reproduce_dataset.py --synthetic-only          # reproduzir só sintéticas
+python3 scripts/instances/reproduce_dataset.py --real-only               # reproduzir só reais
+python3 scripts/instances/reproduce_dataset.py --verify-only             # apenas verificar SHA-256
 ```
 
 #### Opções úteis (com ou sem `mise`)
@@ -181,7 +185,7 @@ python3 scripts/instances/reproduce_dataset.py --real-only --skip-download
 
 ## Dataset (`dataset/processed/`)
 
-O benchmark é composto por **240 grafos simples, não-direcionados e sem vértices isolados** no formato DIMACS `.col`, divididos igualmente em **8 famílias** (**30 instâncias representativas por base** selecionadas via K-Means sobre 16 features estruturais com transformação `log1p` e padronização `StandardScaler`, usando `--seed 42`):
+O benchmark é composto por **240 grafos simples, não-direcionados e sem vértices isolados** no formato DIMACS `.col`, divididos igualmente em **8 famílias** (**30 instâncias representativas por base** selecionadas via K-Means sobre 16 features estruturais com transformação `log1p` e padronização `StandardScaler`; por padrão, tanto a geração quanto a seleção sorteiam seeds aleatórias que ficam salvas em `metadata.json` para reprodução exata):
 
 | Base | Tipo | Pool Elegível | Pool Clusterizado | Selecionados | `n` Único | `n` Mín | `n` Máx | Silhouette |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |

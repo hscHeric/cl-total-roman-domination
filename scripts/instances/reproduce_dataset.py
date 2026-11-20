@@ -14,6 +14,7 @@ import argparse
 import hashlib
 import json
 import os
+import secrets
 import shlex
 import shutil
 import subprocess
@@ -456,6 +457,13 @@ def generate_fresh_dataset(
         run_cli(python_cmd, ["convert", target, "--remove-isolated"], args.dry_run)
 
     run_cli(python_cmd, ["filter", target, "--remove-isolated"], args.dry_run)
+    select_seed = (
+        args.select_seed
+        if args.select_seed is not None
+        else secrets.randbelow(2**31)
+    )
+    if args.select_seed is None:
+        print(f"  Using random selection seed: {select_seed}")
     run_cli(
         python_cmd,
         [
@@ -464,7 +472,7 @@ def generate_fresh_dataset(
             "--count",
             str(args.count),
             "--seed",
-            str(args.select_seed),
+            str(select_seed),
         ],
         args.dry_run,
     )
@@ -564,8 +572,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--select-seed",
         type=int,
-        default=42,
-        help="K-Means selection seed used in --fresh mode (default: 42).",
+        default=None,
+        help=(
+            "K-Means selection seed used in --fresh mode "
+            "(default: random seed per dataset, saved to metadata.json)."
+        ),
     )
     parser.add_argument(
         "--datasets",

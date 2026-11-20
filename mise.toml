@@ -19,8 +19,16 @@ description = "Reproduce exact benchmark dataset from versioned metadata.json (d
 run = "python scripts/instances/reproduce_dataset.py"
 
 [tasks."dataset:generate"]
-description = "Generate a brand-new dataset from scratch (download/convert real datasets, generate synthetic datasets with fresh random seeds, filter, select 30 per family, copy instances + metadata.json + selection.csv to dataset/processed/, verify SHA-256)"
+description = "Generate a brand-new dataset from scratch with random generation and selection seeds (saved to metadata.json), copy to dataset/processed/, and verify SHA-256"
 run = "python scripts/instances/reproduce_dataset.py --fresh"
+
+[tasks."dataset:generate:synthetic"]
+description = "Generate only the 4 synthetic datasets from scratch with random generation and selection seeds (saved to metadata.json) and verify SHA-256"
+run = "python scripts/instances/reproduce_dataset.py --fresh --synthetic-only"
+
+[tasks."dataset:generate:real"]
+description = "Download, convert, and select only the 4 real/benchmark datasets with random selection seeds (saved to metadata.json) and verify SHA-256"
+run = "python scripts/instances/reproduce_dataset.py --fresh --real-only"
 
 [tasks."dataset:reproduce:synthetic"]
 description = "Reproduce only the 4 synthetic datasets from metadata.json and verify SHA-256"
